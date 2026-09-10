@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Number Line Math</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fredoka+One&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0fdf4; /* Light green background for a calm feel */
+            touch-action: manipulation; /* Disable double-tap zoom on touch devices */
+        }
+        h1, h2, .math-text {
+            font-family: 'Fredoka One', cursive; /* Playful font for headers/math */
+        }
+        
+        #canvas-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            overflow-x: auto; /* Allow scrolling if canvas is too wide on very small screens */
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            /* Height is managed by JS based on width to maintain aspect ratio */
+        }
+
+        .btn-hover-effect {
+            transition: all 0.2s ease-in-out;
+        }
+        .btn-hover-effect:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .btn-hover-effect:active {
+            transform: translateY(1px);
+        }
+
+        /* Pulse animation for the speaker icon */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .speaking-indicator {
+            animation: pulse-ring 2s infinite;
+        }
+
+        /* Custom focus rings for accessibility */
+        input:focus, button:focus {
+            outline: none;
+            ring: 4px;
+            ring-color: #60a5fa;
+            ring-offset: 2px;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col items-center p-4 sm:p-8">
+
+    <header class="text-center mb-8 w-full max-w-4xl">
+        <div class="flex justify-center items-center gap-4 mb-2">
+            <h1 class="text-4xl sm:text-5xl text-green-600 drop-shadow-sm">Number Line Explorer</h1>
+            <button id="btnReadTitle" class="bg-blue-100 text-blue-600 p-3 rounded-full hover:bg-blue-200 transition-colors" aria-label="Read title aloud">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10v4a2 2 0 002 2h2.586l3.707 3.707a1 1 0 001.707-.707V4.707a1 1 0 00-1.707-.707L9.586 10H7a2 2 0 00-2 2z" />
+                </svg>
+            </button>
+        </div>
+        <p class="text-lg sm:text-xl text-slate-600">Let's learn addition and subtraction by hopping on the line!</p>
+    </header>
+
+    <main class="w-full max-w-4xl flex flex-col items-center gap-6">
+        
+        <!-- Controls for Mode Selection -->
+        <div class="flex flex-wrap justify-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-green-100 w-full max-w-2xl">
+            <button id="btnAddMode" class="btn-hover-effect bg-green-500 text-white px-6 py-3 rounded-xl text-xl font-bold flex-1 min-w-[150px]">
+                + Addition
+            </button>
+            <button id="btnSubMode" class="btn-hover-effect bg-amber-500 text-white px-6 py-3 rounded-xl text-xl font-bold flex-1 min-w-[150px]">
+                - Subtraction
+            </button>
+        </div>
+
+        <!-- The Problem Display -->
+        <div class="bg-white p-6 sm:p-8 rounded-3xl shadow-lg border-b-4 border-slate-200 w-full max-w-2xl text-center relative">
+            <button id="btnReadProblem" class="absolute top-4 right-4 text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-full" aria-label="Read problem aloud">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10v4a2 2 0 002 2h2.586l3.707 3.707a1 1 0 001.707-.707V4.707a1 1 0 00-1.707-.707L9.586 10H7a2 2 0 00-2 2z" />
+                </svg>
+            </button>
+            
+            <div class="text-5xl sm:text-7xl mb-6 math-text flex justify-center items-center gap-4">
+                <span id="num1Display" class="text-blue-600">?</span>
+                <span id="operatorDisplay" class="text-slate-700">+</span>
+                <span id="num2Display" class="text-green-600">?</span>
+                <span class="text-slate-700">=</span>
+                <!-- Input field for the student -->
+                <input type="number" id="answerInput" class="w-24 sm:w-32 text-center border-4 border-slate-300 rounded-xl focus:border-blue-500 focus:outline-none bg-slate-50 transition-colors" placeholder="?" aria-label="Your answer">
+            </div>
+
+            <!-- Action Buttons for the Problem -->
+            <div class="flex justify-center gap-4 mt-4">
+                <button id="btnCheckAnswer" class="btn-hover-effect bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-2xl text-2xl font-bold shadow-md">
+                    Check Answer
+                </button>
+                <button id="btnShowJumps" class="btn-hover-effect bg-purple-100 hover:bg-purple-200 text-purple-700 px-6 py-4 rounded-2xl text-xl font-semibold shadow-sm flex items-center gap-2">
+                    <span>Show Hops</span>
+                </button>
+            </div>
+            
+            <!-- Feedback Message Area -->
+            <div id="feedbackMessage" class="mt-6 text-2xl font-bold h-8 transition-opacity duration-300 opacity-0">
+                <!-- Messages like "Great job!" appear here -->
+            </div>
+        </div>
+
+        <!-- The Number Line Canvas -->
+        <div id="canvas-container">
+            <canvas id="numberLineCanvas"></canvas>
+        </div>
+
+        <!-- Next Problem Button (Hidden initially) -->
+        <button id="btnNextProblem" class="btn-hover-effect bg-green-500 hover:bg-green-600 text-white px-10 py-4 rounded-full text-2xl font-bold shadow-lg hidden mt-4 animate-bounce">
+            Next Problem ➔
+        </button>
+
+    </main>
+
+    <!-- Settings/Help Modal (Simple implementation) -->
+    <div id="setupMessage" class="mt-8 text-center text-slate-500 text-sm max-w-lg bg-white p-4 rounded-lg shadow-sm">
+        <p><strong>Note for Teachers/Parents:</strong> Ensure your device volume is up. The app uses the built-in American English voice for accessibility. If voice doesn't play immediately, user interaction (clicking a button) is required by browsers to start audio.</p>
+    </div>
+
+    <script>
+        // --- State Variables ---
+        let currentMode = 'add'; // 'add' or 'sub'
+        let currentNum1 = 0;
+        let currentNum2 = 0;
+        let correctAnswer = 0;
+        let maxNumberLine = 20; // Number line goes from 0 to 20
+        let hasShownJumps = false;
+
+        // --- DOM Elements ---
+        const ui = {
+            num1: document.getElementById('num1Display'),
+            op: document.getElementById('operatorDisplay'),
+            num2: document.getElementById('num2Display'),
+            input: document.getElementById('answerInput'),
+            btnCheck: document.getElementById('btnCheckAnswer'),
+            btnShowJumps: document.getElementById('btnShowJumps'),
+            btnNext: document.getElementById('btnNextProblem'),
+            btnAddMode: document.getElementById('btnAddMode'),
+            btnSubMode: document.getElementById('btnSubMode'),
+            feedback: document.getElementById('feedbackMessage'),
+            btnReadTitle: document.getElementById('btnReadTitle'),
+            btnReadProblem: document.getElementById('btnReadProblem'),
+            canvas: document.getElementById('numberLineCanvas'),
+            ctx: document.getElementById('numberLineCanvas').getContext('2d'),
+            container: document.getElementById('canvas-container')
+        };
+
+        // --- Speech Synthesis Setup ---
+        const synth = window.speechSynthesis;
+        let usVoice = null;
+
+        // Load voices and try to select an American English voice
+        function loadVoices() {
+            const voices = synth.getVoices();
+            if (voices.length > 0) {
+                // Try to find Google US English first, then any en-US, then fallback
+                usVoice = voices.find(voice => voice.name.includes('Google US English')) || 
+                          voices.find(voice => voice.lang === 'en-US') || 
+                          voices[0];
+            }
+        }
+
+        // Browsers load voices asynchronously
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        } else {
+            loadVoices(); // Try immediately just in case
+        }
+
+        // Function to speak text
+        function speak(text, callback) {
+            if (synth.speaking) {
+                synth.cancel(); // Stop current speech
+            }
+            
+            if (text !== '') {
+                const utterThis = new SpeechSynthesisUtterance(text);
+                if (usVoice) {
+                    utterThis.voice = usVoice;
+                }
+                
+                // Make the voice slightly slower and higher pitched for younger students
+                utterThis.rate = 0.85; 
+                utterThis.pitch = 1.1;
+
+                utterThis.onend = function (event) {
+                    if(callback) callback();
+                }
+
+                utterThis.onerror = function (event) {
+                    console.error('SpeechSynthesisUtterance.onerror');
+                }
+
+                synth.speak(utterThis);
+            }
+        }
+
+        // --- STREAMING_CHUNK:Logic for generating math problems ---
+
+        // Generate a new problem based on current mode
+        function generateProblem() {
+            ui.input.value = '';
+            ui.input.disabled = false;
+            ui.input.focus();
+            ui.btnNext.classList.add('hidden');
+            ui.btnCheck.classList.remove('hidden');
+            ui.btnShowJumps.disabled = false;
+            ui.btnShowJumps.classList.remove('opacity-50', 'cursor-not-allowed');
+            hideFeedback();
+            hasShownJumps = false;
+            
+            if (currentMode === 'add') {
+                // Ensure sum is <= maxNumberLine (20)
+                currentNum1 = Math.floor(Math.random() * (maxNumberLine / 2 + 1)); // 0 to 10
+                currentNum2 = Math.floor(Math.random() * (maxNumberLine - currentNum1 + 1)); // remaining
+                correctAnswer = currentNum1 + currentNum2;
+                
+                ui.num1.textContent = currentNum1;
+                ui.num1.className = 'text-blue-600';
+                ui.op.textContent = '+';
+                ui.num2.textContent = currentNum2;
+                ui.num2.className = 'text-green-600';
+            } else { // subtraction
+                // Ensure num1 >= num2 so answer is >= 0
+                currentNum1 = Math.floor(Math.random() * (maxNumberLine + 1)); // 0 to 20
+                currentNum2 = Math.floor(Math.random() * (currentNum1 + 1)); // 0 to num1
+                correctAnswer = currentNum1 - currentNum2;
+
+                ui.num1.textContent = currentNum1;
+                ui.num1.className = 'text-blue-600';
+                ui.op.textContent = '-';
+                ui.num2.textContent = currentNum2;
+                ui.num2.className = 'text-amber-600';
+            }
+
+            drawNumberLine(); // Draw base line without jumps
+            
+            // Auto read problem if desired (commented out to prevent annoyance, require button click)
+            // readProblem(); 
+        }
+
+        function readProblem() {
+            let operationWord = currentMode === 'add' ? 'plus' : 'minus';
+            let text = `${currentNum1} ${operationWord} ${currentNum2} equals what?`;
+            speak(text);
+        }
+
+        // --- STREAMING_CHUNK:Canvas Drawing Logic for the Number Line ---
+
+        // Responsive canvas setup
+        function resizeCanvas() {
+            // Make canvas fit container width, set height proportionally
+            const containerWidth = ui.container.clientWidth - 40; // minus padding
+            ui.canvas.width = containerWidth;
+            ui.canvas.height = Math.max(200, containerWidth * 0.3); // Min height 200px
+            drawNumberLine(hasShownJumps); // Redraw based on current state
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Main drawing function
+        function drawNumberLine(showJumps = false) {
+            const ctx = ui.ctx;
+            const width = ui.canvas.width;
+            const height = ui.canvas.height;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Styling variables
+            const padding = 30; // Left/right padding
+            const lineY = height - 50; // Y position of the main line
+            const usableWidth = width - (padding * 2);
+            const tickSpacing = usableWidth / maxNumberLine;
+            
+            // Draw the main line
+            ctx.beginPath();
+            ctx.moveTo(padding, lineY);
+            ctx.lineTo(width - padding, lineY);
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#64748b'; // slate-500
+            ctx.stroke();
+
+            // Draw ticks and numbers
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.font = 'bold 16px "Fredoka One", cursive, sans-serif';
+
+            for (let i = 0; i <= maxNumberLine; i++) {
+                const x = padding + (i * tickSpacing);
+                
+                // Tick mark
+                ctx.beginPath();
+                ctx.moveTo(x, lineY - 10);
+                ctx.lineTo(x, lineY + 10);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#64748b';
+                ctx.stroke();
+
+                // Number text
+                ctx.fillStyle = '#334155'; // slate-700
+                ctx.fillText(i, x, lineY + 15);
+            }
+
+            if (showJumps) {
+                drawJumps(padding, lineY, tickSpacing);
+            }
+        }
+
+        function drawJumps(padding, lineY, tickSpacing) {
+            const ctx = ui.ctx;
+            let startX = padding + (currentNum1 * tickSpacing);
+            let currentX = startX;
+            
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            for (let i = 0; i < currentNum2; i++) {
+                let nextX;
+                if (currentMode === 'add') {
+                    nextX = currentX + tickSpacing;
+                    ctx.strokeStyle = '#3b82f6'; // blue-500
+                } else {
+                    nextX = currentX - tickSpacing;
+                    ctx.strokeStyle = '#f59e0b'; // amber-500
+                }
+
+                // Draw arc
+                ctx.beginPath();
+                const controlX = (currentX + nextX) / 2;
+                const controlY = lineY - 40 - (Math.random() * 10); // Slight vertical variation
+                ctx.moveTo(currentX, lineY);
+                ctx.quadraticCurveTo(controlX, controlY, nextX, lineY);
+                ctx.stroke();
+
+                // Draw arrowhead
+                ctx.beginPath();
+                if (currentMode === 'add') {
+                    ctx.moveTo(nextX - 8, lineY - 8);
+                    ctx.lineTo(nextX, lineY);
+                    ctx.lineTo(nextX - 2, lineY - 10);
+                } else {
+                    ctx.moveTo(nextX + 8, lineY - 8);
+                    ctx.lineTo(nextX, lineY);
+                    ctx.lineTo(nextX + 2, lineY - 10);
+                }
+                ctx.stroke();
+
+                currentX = nextX;
+            }
+        }
+
+        
+        function showFeedback(message, isCorrect) {
+            ui.feedback.textContent = message;
+            ui.feedback.classList.remove('opacity-0', 'text-green-600', 'text-red-500');
+            if (isCorrect) {
+                ui.feedback.classList.add('text-green-600');
+                speak(message);
+            } else {
+                ui.feedback.classList.add('text-red-500');
+                speak(message);
+            }
+            // Force reflow to restart animation if needed
+            void ui.feedback.offsetWidth; 
+            ui.feedback.style.opacity = 1;
+        }
+
+        function hideFeedback() {
+            ui.feedback.style.opacity = 0;
+        }
+
+        // Check the student's answer
+        function checkAnswer() {
+            const userAnswer = parseInt(ui.input.value, 10);
+            
+            if (isNaN(userAnswer)) {
+                showFeedback("Please enter a number!", false);
+                return;
+            }
+
+            if (userAnswer === correctAnswer) {
+                showFeedback("Great job! That's correct! 🎉", true);
+                ui.btnNext.classList.remove('hidden');
+                ui.btnCheck.classList.add('hidden');
+                ui.input.disabled = true;
+                // Automatically show jumps if they got it right and haven't seen them
+                if (!hasShownJumps) {
+                     drawNumberLine(true);
+                     hasShownJumps = true;
+                }
+            } else {
+                showFeedback("Oops, try again!", false);
+            }
+        }
+
+
+        ui.btnCheck.addEventListener('click', checkAnswer);
+        
+        ui.input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkAnswer();
+            }
+        });
+
+        ui.btnShowJumps.addEventListener('click', () => {
+            hasShownJumps = true;
+            drawNumberLine(true);
+            ui.btnShowJumps.disabled = true;
+            ui.btnShowJumps.classList.add('opacity-50', 'cursor-not-allowed');
+        });
+
+        ui.btnNext.addEventListener('click', generateProblem);
+
+        ui.btnAddMode.addEventListener('click', () => {
+            currentMode = 'add';
+            ui.btnAddMode.classList.replace('bg-green-100', 'bg-green-500');
+            ui.btnAddMode.classList.replace('text-green-700', 'text-white');
+            ui.btnSubMode.classList.replace('bg-amber-500', 'bg-white');
+            ui.btnSubMode.classList.replace('text-white', 'text-amber-500');
+            ui.btnSubMode.classList.add('border-2', 'border-amber-500');
+            generateProblem();
+        });
+
+        ui.btnSubMode.addEventListener('click', () => {
+            currentMode = 'sub';
+            ui.btnSubMode.classList.replace('bg-white', 'bg-amber-500');
+            ui.btnSubMode.classList.replace('text-amber-500', 'text-white');
+            ui.btnSubMode.classList.remove('border-2', 'border-amber-500');
+            ui.btnAddMode.classList.replace('bg-green-500', 'bg-white');
+            ui.btnAddMode.classList.replace('text-white', 'text-green-500');
+            ui.btnAddMode.classList.add('border-2', 'border-green-500');
+            generateProblem();
+        });
+
+        ui.btnReadTitle.addEventListener('click', () => speak("Number Line Explorer"));
+        ui.btnReadProblem.addEventListener('click', readProblem);
+
+        resizeCanvas(); // Set initial canvas size
+        
+        // Set initial button states
+        ui.btnAddMode.classList.add('border-2', 'border-green-500'); // Ensure border is ready for swapping
+        ui.btnSubMode.classList.replace('bg-amber-500', 'bg-white');
+        ui.btnSubMode.classList.replace('text-white', 'text-amber-500');
+        ui.btnSubMode.classList.add('border-2', 'border-amber-500');
+        
+        generateProblem(); // Start with a problem
+
+    </script>
+</body>
+</html>
